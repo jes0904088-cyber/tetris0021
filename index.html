@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mobile Tetris Lite Integrated</title>
+    <title>Mobile Tetris with Score</title>
     <style>
         /* CSS 시작 */
         :root {
-            --block-size: 25px; /* 블록 크기 변수 설정 */
+            --block-size: 25px;
             --cols: 10;
             --rows: 20;
         }
@@ -23,12 +23,23 @@
             background-color: #2c3e50;
             color: #ecf0f1;
             font-family: Arial, sans-serif;
-            user-select: none; /* 모바일에서 선택 방지 */
+            user-select: none;
             -webkit-user-select: none;
         }
 
         h1 {
             margin-bottom: 15px;
+        }
+        
+        #score-panel {
+            margin-bottom: 15px;
+            padding: 10px 20px;
+            border: 2px solid #ecf0f1;
+            border-radius: 5px;
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            width: calc(var(--cols) * var(--block-size));
         }
 
         #game-container {
@@ -100,7 +111,10 @@
 </head>
 <body>
 
-    <h1>Mobile Tetris Lite</h1>
+    <h1>Mobile Tetris with Score</h1>
+    
+    <div id="score-panel">Score: <span id="score">0</span></div>
+
     <div id="game-container">
         </div>
 
@@ -119,219 +133,21 @@
         const ROWS = 20;
         const COLS = 10;
         const container = document.getElementById('game-container');
+        const scoreElement = document.getElementById('score');
 
         // 2. 게임 상태
         let board = Array(ROWS).fill(0).map(() => Array(COLS).fill(0)); 
         let currentPiece = null;
         let pieceX = 0;
         let pieceY = 0;
+        let isGameOver = false;
+        let score = 0;
 
-        // 3. 테트로미노 모양 정의
+        // 3. 테트로미노 모양 정의 (기존과 동일)
         const TETROMINOS = {
             'T': { shape: [[0,1,0], [1,1,1], [0,0,0]], color: 'T' },
             'I': { shape: [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]], color: 'I' },
             'O': { shape: [[1,1], [1,1]], color: 'O' },
             'L': { shape: [[0,0,1], [1,1,1], [0,0,0]], color: 'L' },
             'J': { shape: [[1,0,0], [1,1,1], [0,0,0]], color: 'J' },
-            'S': { shape: [[0,1,1], [1,1,0], [0,0,0]], color: 'S' },
-            'Z': { shape: [[1,1,0], [0,1,1], [0,0,0]], color: 'Z' }
-        };
-
-        // 4. 새 블록 생성
-        function spawnPiece() {
-            const keys = Object.keys(TETROMINOS);
-            const name = keys[Math.floor(Math.random() * keys.length)];
-            const pieceData = TETROMINOS[name];
-            
-            // 깊은 복사 및 이름(색상) 저장
-            currentPiece = JSON.parse(JSON.stringify(pieceData.shape)); 
-            currentPiece.name = pieceData.color;
-            
-            pieceX = Math.floor(COLS / 2) - Math.floor(currentPiece[0].length / 2);
-            pieceY = 0;
-            
-            // 새 블록이 생성되자마자 충돌하면 게임 오버 (여기서는 생략)
-        }
-        
-        // 5. 충돌 검사
-        function isValidMove(newPiece, newX, newY) {
-            const pieceRows = newPiece.length;
-            const pieceCols = newPiece[0].length;
-            
-            for (let r = 0; r < pieceRows; r++) {
-                for (let c = 0; c < pieceCols; c++) {
-                    if (newPiece[r][c] === 1) {
-                        const boardR = newY + r;
-                        const boardC = newX + c;
-
-                        // 경계 검사: 좌, 우, 하단
-                        if (boardC < 0 || boardC >= COLS || boardR >= ROWS) {
-                            return false;
-                        }
-                        // 쌓인 블록과의 충돌 검사 (테두리 밖은 무시)
-                        if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
-                            if (board[boardR][boardC] !== 0) {
-                                return false;
-                            }
-                        }
-                    }
-                }
-            }
-            return true;
-        }
-
-
-        // 6. 게임 보드 초기 DOM 요소 생성
-        function initializeBoardDOM() {
-            container.innerHTML = ''; // 초기화
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    const blockDiv = document.createElement('div');
-                    blockDiv.classList.add('block');
-                    container.appendChild(blockDiv);
-                }
-            }
-        }
-        
-        // 7. 게임 상태를 바탕으로 DOM 업데이트 (렌더링)
-        function render() {
-            const allBlocks = container.children;
-            
-            // 1. 보드 상태(쌓인 블록) 렌더링
-            let blockIndex = 0;
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    const blockDiv = allBlocks[blockIndex];
-                    // 기존 클래스 초기화 (움직이는 블록 잔상 제거)
-                    blockDiv.className = 'block'; 
-                    
-                    if (board[r][c] !== 0) {
-                        blockDiv.classList.add(board[r][c]); // 쌓인 블록 색상 적용
-                    }
-                    blockIndex++;
-                }
-            }
-            
-            // 2. 현재 움직이는 블록 렌더링
-            if (!currentPiece) return;
-
-            const pieceRows = currentPiece.length;
-            const pieceCols = currentPiece[0].length;
-            const colorClass = currentPiece.name;
-
-            for (let r = 0; r < pieceRows; r++) {
-                for (let c = 0; c < pieceCols; c++) {
-                    if (currentPiece[r][c]) {
-                        const boardR = pieceY + r;
-                        const boardC = pieceX + c;
-
-                        if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
-                            const cellIndex = boardR * COLS + boardC;
-                            const blockDiv = allBlocks[cellIndex];
-                            if (blockDiv) {
-                                blockDiv.classList.add(colorClass); 
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // 8. 블록 잠금 (바닥 또는 다른 블록에 닿았을 때)
-        function lockPiece() {
-            const pieceRows = currentPiece.length;
-            const pieceCols = currentPiece[0].length;
-            const colorClass = currentPiece.name;
-
-            for (let r = 0; r < pieceRows; r++) {
-                for (let c = 0; c < pieceCols; c++) {
-                    if (currentPiece[r][c]) {
-                        const boardR = pieceY + r;
-                        const boardC = pieceX + c;
-                        
-                        if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
-                            board[boardR][boardC] = colorClass; // 보드에 고정
-                        }
-                    }
-                }
-            }
-            // TODO: 줄 제거 및 점수 로직 추가
-            spawnPiece();
-        }
-
-        // 9. 블록 이동
-        function move(deltaX, deltaY) {
-            const newX = pieceX + deltaX;
-            const newY = pieceY + deltaY;
-
-            if (isValidMove(currentPiece, newX, newY)) {
-                pieceX = newX;
-                pieceY = newY;
-            } else if (deltaY === 1) { 
-                // 아래로 이동이 실패했고, 이미 내려가는 중이었다면 고정해야 함
-                lockPiece();
-            }
-            render();
-        }
-        
-        // 10. 블록 회전 (90도 시계 방향)
-        function rotate() {
-            const N = currentPiece.length;
-            let newPiece = Array(N).fill(0).map(() => Array(N).fill(0));
-
-            for (let r = 0; r < N; r++) {
-                for (let c = 0; c < N; c++) {
-                    newPiece[c][N - 1 - r] = currentPiece[r][c];
-                }
-            }
-            
-            // 회전된 위치가 유효한지 검사
-            if (isValidMove(newPiece, pieceX, pieceY)) {
-                newPiece.name = currentPiece.name; // 이름(색상) 복원
-                currentPiece = newPiece;
-            }
-            render();
-        }
-        
-        // 11. 하드 드롭
-        function hardDrop() {
-            // 충돌하기 직전까지 아래로 이동
-            while (isValidMove(currentPiece, pieceX, pieceY + 1)) {
-                pieceY++;
-            }
-            lockPiece();
-            render();
-        }
-
-        // 12. 게임 루프 (자동 하강)
-        let gameLoopId;
-        const DROP_INTERVAL = 1000; // 1초
-
-        function gameLoop() {
-            move(0, 1); // 1칸 아래로 이동
-        }
-
-        function startGame() {
-            if (gameLoopId) clearInterval(gameLoopId);
-            board = Array(ROWS).fill(0).map(() => Array(COLS).fill(0));
-            initializeBoardDOM();
-            spawnPiece();
-            gameLoopId = setInterval(gameLoop, DROP_INTERVAL);
-            render();
-        }
-
-        // 13. 모바일 터치 이벤트 리스너 연결
-        document.getElementById('btn-left').addEventListener('click', () => move(-1, 0));
-        document.getElementById('btn-right').addEventListener('click', () => move(1, 0));
-        document.getElementById('btn-rotate').addEventListener('click', rotate);
-        document.getElementById('btn-down').addEventListener('click', () => move(0, 1)); // Soft Drop
-        document.getElementById('btn-drop').addEventListener('click', hardDrop); // Hard Drop
-
-        // 14. 초기 실행
-        startGame();
-
-        // JavaScript 끝
-    </script>
-
-</body>
-</html>
+            'S': { shape: [[0,1,1], [1,1,0], [0,0
