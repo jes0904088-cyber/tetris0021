@@ -1,154 +1,73 @@
-// JavaScript 시작
-
-// 1. 게임 설정 (기존과 동일)
-const ROWS = 20;
-const COLS = 10;
-const container = document.getElementById('game-container');
-const scoreElement = document.getElementById('score');
-
-// 2. 게임 상태
-let board = Array(ROWS).fill(0).map(() => Array(COLS).fill(0)); 
-let currentPiece = null;
-let pieceX = 0;
-let pieceY = 0;
-let isGameOver = false;
-let score = 0;
-let gameLoopId; // 게임 루프 ID
-
-// 3. 테트로미노 모양 정의 (기존과 동일)
-const TETROMINOS = {
-    'T': { shape: [[0,1,0], [1,1,1], [0,0,0]], color: 'T' },
-    'I': { shape: [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]], color: 'I' },
-    'O': { shape: [[1,1], [1,1]], color: 'O' },
-    'L': { shape: [[0,0,1], [1,1,1], [0,0,0]], color: 'L' },
-    'J': { shape: [[1,0,0], [1,1,1], [0,0,0]], color: 'J' },
-    'S': { shape: [[0,1,1], [1,1,0], [0,0,0]], color: 'S' },
-    'Z': { shape: [[1,1,0], [0,1,1], [0,0,0]], color: 'Z' }
-};
-
-// 4. 새 블록 생성 (기존과 동일)
-function spawnPiece() {
-    // ... (블록 생성 및 게임 오버 로직은 기존과 동일)
-    const keys = Object.keys(TETROMINOS);
-    const name = keys[Math.floor(Math.random() * keys.length)];
-    const pieceData = TETROMINOS[name];
-    
-    currentPiece = JSON.parse(JSON.stringify(pieceData.shape)); 
-    currentPiece.name = pieceData.color;
-    
-    pieceX = Math.floor(COLS / 2) - Math.floor(currentPiece[0].length / 2);
-    pieceY = 0;
-    
-    if (!isValidMove(currentPiece, pieceX, pieceY)) {
-        isGameOver = true;
-        clearInterval(gameLoopId);
-        document.querySelectorAll('.control-btn').forEach(btn => btn.disabled = true);
-        alert(`GAME OVER! 최종 점수: ${score}`); 
-        render(); 
-    }
-}
-
-// 5. 충돌 검사 (핵심 로직이므로 다시 확인)
-function isValidMove(newPiece, newX, newY) {
-    const pieceRows = newPiece.length;
-    const pieceCols = newPiece[0].length;
-    
-    for (let r = 0; r < pieceRows; r++) {
-        for (let c = 0; c < pieceCols; c++) {
-            if (newPiece[r][c] === 1) { // 블록의 일부일 때만 검사
-                const boardR = newY + r;
-                const boardC = newX + c;
-
-                // 1. 경계 검사: 좌/우/하단 경계 확인
-                if (boardC < 0 || boardC >= COLS || boardR >= ROWS) {
-                    return false;
-                }
-                
-                // 2. 쌓인 블록과의 충돌 검사: 보드 내부에서만 검사
-                if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
-                    if (board[boardR][boardC] !== 0) {
-                        return false;
-                    }
-                }
-            }
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Tetris Final</title>
+    <style>
+        /* CSS 시작 */
+        :root {
+            --block-size: 25px;
+            --cols: 10;
+            --rows: 20;
         }
-    }
-    return true;
-}
 
-// 6. DOM 초기화 (기존과 동일)
-function initializeBoardDOM() { /* ... */ }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding-top: 20px;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            font-family: Arial, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
 
-// 7. 렌더링 (기존과 동일)
-function render() { /* ... */ }
+        h1 {
+            margin-bottom: 15px;
+        }
+        
+        #score-panel {
+            margin-bottom: 15px;
+            padding: 10px 20px;
+            border: 2px solid #ecf0f1;
+            border-radius: 5px;
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            width: calc(var(--cols) * var(--block-size));
+        }
 
-// 8. 블록 잠금 (기존과 동일)
-function lockPiece() { 
-    // ...
-    clearLines(); 
-    spawnPiece();
-}
+        #game-container {
+            border: 5px solid #bdc3c7;
+            background-color: #1c2833;
+            display: grid;
+            width: calc(var(--cols) * var(--block-size));
+            height: calc(var(--rows) * var(--block-size));
+            grid-template-columns: repeat(var(--cols), var(--block-size));
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
 
-// 9. 줄 제거 (기존과 동일)
-function clearLines() { /* ... */ }
+        .block {
+            width: 100%;
+            height: 100%;
+            background-color: transparent;
+            box-sizing: border-box;
+            /* ❗️ 경계선 색상을 약간 밝게 조정하여 블록 간 구분을 쉽게 합니다. */
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
 
-// 10. 블록 이동
-function move(deltaX, deltaY) {
-    if (isGameOver) return;
-
-    const newX = pieceX + deltaX;
-    const newY = pieceY + deltaY;
-
-    if (isValidMove(currentPiece, newX, newY)) {
-        // ⭐️ 이동이 유효하면 좌표 업데이트
-        pieceX = newX;
-        pieceY = newY;
-    } else if (deltaY === 1) { 
-        // ⭐️ 아래로의 이동이 실패했다면 블록 고정
-        lockPiece();
-    }
-    render();
-}
-
-// 11. 블록 회전 (기존과 동일)
-function rotate() { /* ... */ }
-
-// 12. 하드 드롭 (기존과 동일)
-function hardDrop() { /* ... */ }
-
-// 13. 게임 루프 및 시작
-const DROP_INTERVAL = 1000; // 1초
-
-function gameLoop() {
-    // ⭐️ 1초마다 move(0, 1) 호출
-    if (isGameOver) return;
-    move(0, 1); 
-}
-
-function startGame() {
-    if (gameLoopId) clearInterval(gameLoopId);
-    board = Array(ROWS).fill(0).map(() => Array(COLS).fill(0));
-    isGameOver = false; 
-    score = 0; 
-    
-    document.querySelectorAll('.control-btn').forEach(btn => btn.disabled = false);
-
-    initializeBoardDOM();
-    spawnPiece();
-    
-    // ⭐️ setInterval을 이용해 gameLoop 함수를 반복 실행
-    gameLoopId = setInterval(gameLoop, DROP_INTERVAL); 
-    render();
-}
-
-// 14. 모바일 터치 이벤트 리스너 연결 (기존과 동일)
-document.getElementById('btn-left').addEventListener('click', () => move(-1, 0));
-document.getElementById('btn-right').addEventListener('click', () => move(1, 0));
-document.getElementById('btn-rotate').addEventListener('click', rotate);
-document.getElementById('btn-down').addEventListener('click', () => move(0, 1)); 
-document.getElementById('btn-drop').addEventListener('click', hardDrop); 
-
-// 15. 초기 실행
-startGame();
-
-// JavaScript 끝
+        /* 블록 색상 */
+        .block.T { background-color: #9b59b6; border-color: #8e44ad; }
+        .block.I { background-color: #3498db; border-color: #2980b9; }
+        .block.O { background-color: #f1c40f; border-color: #f39c12; }
+        .block.L { background-color: #e67e22; border-color: #d35400; }
+        .block.J { background-color: #2980b9; border-color: #3498db; }
+        .block.S { background-color: #2ecc71; border-color: #27ae60; }
+        .block.Z { background-color: #e74c3c; border-color: #c0392b; }
+        
+        /* ❗️ 게임 오버 시 블록을 회색으로 덮
