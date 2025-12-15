@@ -150,4 +150,247 @@
             'O': { shape: [[1,1], [1,1]], color: 'O' },
             'L': { shape: [[0,0,1], [1,1,1], [0,0,0]], color: 'L' },
             'J': { shape: [[1,0,0], [1,1,1], [0,0,0]], color: 'J' },
-            'S': { shape: [[0,1,1], [1,1,0], [0,0
+            'S': { shape: [[0,1,1], [1,1,0], [0,0,0]], color: 'S' },
+            'Z': { shape: [[1,1,0], [0,1,1], [0,0,0]], color: 'Z' }
+        };
+
+        // 4. 새 블록 생성
+        function spawnPiece() {
+            const keys = Object.keys(TETROMINOS);
+            const name = keys[Math.floor(Math.random() * keys.length)];
+            const pieceData = TETROMINOS[name];
+            
+            currentPiece = JSON.parse(JSON.stringify(pieceData.shape)); 
+            currentPiece.name = pieceData.color;
+            
+            pieceX = Math.floor(COLS / 2) - Math.floor(currentPiece[0].length / 2);
+            pieceY = 0;
+            
+            // 게임 오버 체크: 새 블록이 생성되는 위치에 이미 블록이 있다면 게임 오버
+            if (!isValidMove(currentPiece, pieceX, pieceY)) {
+                isGameOver = true;
+                clearInterval(gameLoopId);
+                
+                document.querySelectorAll('.control-btn').forEach(btn => btn.disabled = true);
+                
+                // ⭐️ 게임 오버 시 최종 점수를 표시
+                alert(`GAME OVER! 최종 점수: ${score}`); 
+                render(); 
+            }
+        }
+
+        // 5. 충돌 검사 (기존과 동일)
+        function isValidMove(newPiece, newX, newY) {
+            const pieceRows = newPiece.length;
+            const pieceCols = newPiece[0].length;
+            
+            for (let r = 0; r < pieceRows; r++) {
+                for (let c = 0; c < pieceCols; c++) {
+                    if (newPiece[r][c] === 1) {
+                        const boardR = newY + r;
+                        const boardC = newX + c;
+
+                        if (boardC < 0 || boardC >= COLS || boardR >= ROWS) {
+                            return false;
+                        }
+                        if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
+                            if (board[boardR][boardC] !== 0) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        // 6. 게임 보드 초기 DOM 요소 생성 (기존과 동일)
+        function initializeBoardDOM() {
+            container.innerHTML = ''; 
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const blockDiv = document.createElement('div');
+                    blockDiv.classList.add('block');
+                    container.appendChild(blockDiv);
+                }
+            }
+        }
+
+        // 7. 게임 상태를 바탕으로 DOM 업데이트 (렌더링)
+        function render() {
+            const allBlocks = container.children;
+            let blockIndex = 0;
+            
+            // ⭐️ 점수판 업데이트
+            scoreElement.textContent = score;
+
+            // 1. 보드 상태(쌓인 블록) 렌더링
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const blockDiv = allBlocks[blockIndex];
+                    blockDiv.className = 'block'; 
+                    
+                    if (isGameOver) {
+                         blockDiv.style.backgroundColor = '#555';
+                    } else if (board[r][c] !== 0) {
+                        blockDiv.classList.add(board[r][c]);
+                    }
+                    blockIndex++;
+                }
+            }
+            
+            // 2. 현재 움직이는 블록 렌더링
+            if (!isGameOver && currentPiece) {
+                const pieceRows = currentPiece.length;
+                const pieceCols = currentPiece[0].length;
+                const colorClass = currentPiece.name;
+
+                for (let r = 0; r < pieceRows; r++) {
+                    for (let c = 0; c < pieceCols; c++) {
+                        if (currentPiece[r][c]) {
+                            const boardR = pieceY + r;
+                            const boardC = pieceX + c;
+
+                            if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
+                                const cellIndex = boardR * COLS + boardC;
+                                const blockDiv = allBlocks[cellIndex];
+                                if (blockDiv) {
+                                    blockDiv.classList.add(colorClass); 
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 8. 블록 잠금
+        function lockPiece() {
+            const pieceRows = currentPiece.length;
+            const pieceCols = currentPiece[0].length;
+            const colorClass = currentPiece.name;
+
+            for (let r = 0; r < pieceRows; r++) {
+                for (let c = 0; c < pieceCols; c++) {
+                    if (currentPiece[r][c]) {
+                        const boardR = pieceY + r;
+                        const boardC = pieceX + c;
+                        
+                        if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
+                            board[boardR][boardC] = colorClass; 
+                        }
+                    }
+                }
+            }
+            
+            clearLines(); 
+            spawnPiece();
+        }
+
+        // 9. 줄 제거 로직 (점수 증가 로직 포함)
+        function clearLines() {
+            let linesCleared = 0; 
+            
+            for (let r = ROWS - 1; r >= 0; r--) {
+                const isLineFull = board[r].every(cell => cell !== 0);
+
+                if (isLineFull) {
+                    linesCleared++; 
+                    
+                    for (let k = r; k > 0; k--) {
+                        board[k] = [...board[k - 1]]; 
+                    }
+                    board[0] = Array(COLS).fill(0); 
+                    r++; 
+                }
+            }
+            
+            // 점수 업데이트: 지워진 줄 수 * 100점
+            if (linesCleared > 0) {
+                score += linesCleared * 100; 
+            }
+        }
+
+        // 10. 블록 이동
+        function move(deltaX, deltaY) {
+            if (isGameOver) return; 
+
+            const newX = pieceX + deltaX;
+            const newY = pieceY + deltaY;
+
+            if (isValidMove(currentPiece, newX, newY)) {
+                pieceX = newX;
+                pieceY = newY;
+            } else if (deltaY === 1) { 
+                lockPiece();
+            }
+            render();
+        }
+
+        // 11. 블록 회전
+        function rotate() {
+            if (isGameOver) return;
+            const N = currentPiece.length;
+            let newPiece = Array(N).fill(0).map(() => Array(N).fill(0));
+
+            for (let r = 0; r < N; r++) {
+                for (let c = 0; c < N; c++) {
+                    newPiece[c][N - 1 - r] = currentPiece[r][c];
+                }
+            }
+            
+            if (isValidMove(newPiece, pieceX, pieceY)) {
+                newPiece.name = currentPiece.name;
+                currentPiece = newPiece;
+            }
+            render();
+        }
+
+        // 12. 하드 드롭
+        function hardDrop() {
+            if (isGameOver) return;
+            while (isValidMove(currentPiece, pieceX, pieceY + 1)) {
+                pieceY++;
+            }
+            lockPiece();
+            render();
+        }
+
+        // 13. 게임 루프 및 시작
+        let gameLoopId;
+        const DROP_INTERVAL = 1000; 
+
+        function gameLoop() {
+            if (isGameOver) return;
+            move(0, 1); 
+        }
+
+        function startGame() {
+            if (gameLoopId) clearInterval(gameLoopId);
+            board = Array(ROWS).fill(0).map(() => Array(COLS).fill(0));
+            isGameOver = false; 
+            score = 0; 
+            
+            document.querySelectorAll('.control-btn').forEach(btn => btn.disabled = false);
+
+            initializeBoardDOM();
+            spawnPiece();
+            gameLoopId = setInterval(gameLoop, DROP_INTERVAL);
+            render();
+        }
+
+        // 14. 모바일 터치 이벤트 리스너 연결 (기존과 동일)
+        document.getElementById('btn-left').addEventListener('click', () => move(-1, 0));
+        document.getElementById('btn-right').addEventListener('click', () => move(1, 0));
+        document.getElementById('btn-rotate').addEventListener('click', rotate);
+        document.getElementById('btn-down').addEventListener('click', () => move(0, 1)); 
+        document.getElementById('btn-drop').addEventListener('click', hardDrop); 
+
+        // 15. 초기 실행
+        startGame();
+
+        // JavaScript 끝
+    </script>
+
+</body>
+</html>
