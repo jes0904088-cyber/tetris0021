@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mobile Tetris Final</title>
+    <title>Mobile Tetris No Line Clearing</title>
     <style>
-        /* CSS 시작 */
+        /* CSS 시작 (기존과 동일) */
         :root {
             --block-size: 25px;
             --cols: 10;
@@ -57,7 +57,6 @@
             height: 100%;
             background-color: transparent;
             box-sizing: border-box;
-            /* ❗️ 경계선 색상을 약간 밝게 조정하여 블록 간 구분을 쉽게 합니다. */
             border: 1px solid rgba(255, 255, 255, 0.1); 
         }
 
@@ -70,4 +69,15 @@
         .block.S { background-color: #2ecc71; border-color: #27ae60; }
         .block.Z { background-color: #e74c3c; border-color: #c0392b; }
         
-        /* ❗️ 게임 오버 시 블록을 회색으로 덮
+        .game-over-block {
+            background-color: #555 !important;
+            border-color: #333 !important;
+        }
+
+        #controls {
+            margin-top: 30px;
+            padding: 10px;
+            display: grid;
+            grid-template-areas:
+                ". rotate ."
+                "
