@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tetris Game</title>
+    <title>Christmas Tetris</title>
     <style>
         body {
-            background: #202028;
+            /* 기본 배경 설정 (이미지가 로드되기 전) */
+            background: #202028 no-repeat center center fixed;
+            background-size: cover;
             color: #fff;
             font-family: sans-serif;
             display: flex;
@@ -17,49 +19,80 @@
             margin: 0;
             overflow: hidden;
             touch-action: manipulation;
+            transition: background-image 0.5s ease-in-out; /* 배경 전환 효과 */
         }
+
+        /* 게임 화면을 더 잘 보이게 하기 위한 반투명 오버레이 */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: -1;
+        }
+
         #game-container {
             position: relative;
-            border: 2px solid #fff;
-            background: #000;
+            border: 3px solid #fff;
+            background: rgba(0, 0, 0, 0.85); /* 캔버스 뒤쪽 살짝 투명하게 */
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
         }
+
         canvas {
             display: block;
-            height: 60vh;
+            height: 55vh;
         }
+
         .score-board {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             margin-bottom: 10px;
             color: #ffeb3b;
+            text-shadow: 2px 2px 4px #000;
+            font-weight: bold;
         }
+
         #game-over {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 10;
         }
+
+        /* 컨트롤러 그리드 수정 */
         .controls {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
             gap: 10px;
-            margin-top: 20px;
-            width: 90%;
+            margin-top: 15px;
+            width: 95%;
             max-width: 300px;
         }
+
         .btn {
-            background: #444;
+            background: rgba(255, 255, 255, 0.2);
             color: white;
-            border: none;
-            padding: 15px;
-            font-size: 1.2rem;
-            border-radius: 10px;
+            border: 1px solid #fff;
+            padding: 15px 0;
+            font-size: 1.5rem;
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+            cursor: pointer;
         }
-        .btn:active { background: #666; }
-        .btn-hard { background: #ff8e0d; grid-column: 2; }
+
+        .btn:active { background: rgba(255, 255, 255, 0.4); }
+
+        /* 요청하신 위치 지정 */
+        .btn-rotate { grid-column: 2; grid-row: 1; } /* 하드드롭 위쪽 */
+        .btn-left   { grid-column: 1; grid-row: 2; } /* 하드드롭 왼쪽 */
+        .btn-hard   { grid-column: 2; grid-row: 2; background: #ff8e0d; } /* 중앙 */
+        .btn-right  { grid-column: 3; grid-row: 2; } /* 하드드롭 오른쪽 */
+        .btn-down   { grid-column: 2; grid-row: 3; } /* 하드드롭 아래쪽 */
+
     </style>
 </head>
 <body>
@@ -71,16 +104,16 @@
         <div id="game-over">
             <h1 style="color: #ff4444;">GAME OVER</h1>
             <p>최종 점수: <span id="final-score">0</span></p>
-            <button onclick="resetGame()" style="padding: 10px 20px; background: #4caf50; border: none; color: white; border-radius: 5px;">다시 시작</button>
+            <button onclick="resetGame()" style="padding: 12px 24px; background: #4caf50; border: none; color: white; border-radius: 8px; font-size: 1rem; cursor: pointer;">다시 시작</button>
         </div>
     </div>
 
     <div class="controls">
-        <button class="btn" onclick="playerRotate(1)">↻</button>
-        <button class="btn" onclick="playerMove(-1)">◀</button>
+        <button class="btn btn-rotate" onclick="playerRotate(1)">↻</button>
+        <button class="btn btn-left" onclick="playerMove(-1)">◀</button>
         <button class="btn btn-hard" onclick="playerHardDrop()">⇊</button>
-        <button class="btn" onclick="playerMove(1)">▶</button>
-        <button class="btn" onclick="playerDrop()" style="grid-column: 2;">▼</button>
+        <button class="btn btn-right" onclick="playerMove(1)">▶</button>
+        <button class="btn btn-down" onclick="playerDrop()">▼</button>
     </div>
 
     <script>
@@ -90,6 +123,18 @@
         const gameOverScreen = document.getElementById('game-over');
 
         context.scale(20, 20);
+
+        // --- 랜덤 배경 설정 기능 ---
+        const bgImages = [
+            'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=800&q=80', // 트리와 조명
+            'https://images.unsplash.com/photo-1512389142860-9c449e58a543?auto=format&fit=crop&w=800&q=80', // 눈 내린 풍경
+            'https://images.unsplash.com/photo-1482517967863-00e15c9b44be?auto=format&fit=crop&w=800&q=80'  // 크리스마스 장식
+        ];
+
+        function setRandomBackground() {
+            const randomImg = bgImages[Math.floor(Math.random() * bgImages.length)];
+            document.body.style.backgroundImage = `url('${randomImg}')`;
+        }
 
         function createMatrix(w, h) {
             const matrix = [];
@@ -247,6 +292,7 @@
             player.score = 0;
             isGameOver = false;
             gameOverScreen.style.display = 'none';
+            setRandomBackground(); // 재시작 시 배경 변경
             updateScore();
             playerReset();
             update();
@@ -263,6 +309,8 @@
             else if (event.keyCode === 32) playerHardDrop();
         });
 
+        // 초기 시작
+        setRandomBackground();
         playerReset();
         updateScore();
         update();
