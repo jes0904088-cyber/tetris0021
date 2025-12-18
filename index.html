@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mobile Tetris - Game Over</title>
+    <title>Tetris Game</title>
     <style>
         body {
             background: #202028;
             color: #fff;
-            font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+            font-family: sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -18,80 +18,48 @@
             overflow: hidden;
             touch-action: manipulation;
         }
-
         #game-container {
             position: relative;
             border: 2px solid #fff;
+            background: #000;
         }
-
         canvas {
             display: block;
-            background-color: #000;
-            height: 55vh;
+            height: 60vh;
         }
-
         .score-board {
             font-size: 1.5rem;
-            margin: 10px 0;
+            margin-bottom: 10px;
             color: #ffeb3b;
         }
-
-        /* 게임 오버 화면 스타일 */
         #game-over {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            display: none; /* 기본적으로 숨김 */
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 10;
         }
-
-        #game-over h1 { color: #ff4444; margin-bottom: 10px; }
-        #game-over p { font-size: 1.2rem; margin-bottom: 20px; }
-        
-        #restart-btn {
-            padding: 10px 20px;
-            font-size: 1rem;
-            background: #4caf50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        /* 컨트롤러 디자인 */
         .controls {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-top: 10px;
+            gap: 10px;
+            margin-top: 20px;
             width: 90%;
-            max-width: 320px;
+            max-width: 300px;
         }
-
         .btn {
             background: #444;
             color: white;
             border: none;
-            padding: 15px 0;
-            font-size: 1.4rem;
+            padding: 15px;
+            font-size: 1.2rem;
             border-radius: 10px;
-            user-select: none;
-            cursor: pointer;
-            -webkit-tap-highlight-color: transparent;
         }
-
-        .btn:active { background: #666; transform: scale(0.95); }
+        .btn:active { background: #666; }
         .btn-hard { background: #ff8e0d; grid-column: 2; }
-        .btn-rotate { grid-column: 2; }
-        .btn-left { grid-column: 1; }
-        .btn-down { grid-column: 2; }
-        .btn-right { grid-column: 3; }
     </style>
 </head>
 <body>
@@ -100,20 +68,19 @@
 
     <div id="game-container">
         <canvas id="tetris" width="240" height="400"></canvas>
-        
         <div id="game-over">
-            <h1>GAME OVER</h1>
-            <p>최종 점수: <span id="final-score">0</span>점</p>
-            <button id="restart-btn">다시 시작</button>
+            <h1 style="color: #ff4444;">GAME OVER</h1>
+            <p>최종 점수: <span id="final-score">0</span></p>
+            <button onclick="resetGame()" style="padding: 10px 20px; background: #4caf50; border: none; color: white; border-radius: 5px;">다시 시작</button>
         </div>
     </div>
 
     <div class="controls">
-        <button class="btn btn-rotate" id="up">↻</button>
-        <button class="btn btn-left" id="left">◀</button>
-        <button class="btn btn-hard" id="space">⇊</button>
-        <button class="btn btn-right" id="right">▶</button>
-        <button class="btn btn-down" id="down">▼</button>
+        <button class="btn" onclick="playerRotate(1)">↻</button>
+        <button class="btn" onclick="playerMove(-1)">◀</button>
+        <button class="btn btn-hard" onclick="playerHardDrop()">⇊</button>
+        <button class="btn" onclick="playerMove(1)">▶</button>
+        <button class="btn" onclick="playerDrop()" style="grid-column: 2;">▼</button>
     </div>
 
     <script>
@@ -121,37 +88,8 @@
         const context = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
         const gameOverScreen = document.getElementById('game-over');
-        const finalScoreElement = document.getElementById('final-score');
-        const restartBtn = document.getElementById('restart-btn');
 
         context.scale(20, 20);
-
-        let isGameOver = false;
-
-        function arenaSweep() {
-            let rowCount = 1;
-            outer: for (let y = arena.length - 1; y > 0; --y) {
-                for (let x = 0; x < arena[y].length; ++x) {
-                    if (arena[y][x] === 0) continue outer;
-                }
-                const row = arena.splice(y, 1)[0].fill(0);
-                arena.unshift(row);
-                ++y;
-                player.score += rowCount * 10;
-                rowCount *= 2;
-            }
-            updateScore();
-        }
-
-        function collide(arena, player) {
-            const [m, o] = [player.matrix, player.pos];
-            for (let y = 0; y < m.length; ++y) {
-                for (let x = 0; x < m[y].length; ++x) {
-                    if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) return true;
-                }
-            }
-            return false;
-        }
 
         function createMatrix(w, h) {
             const matrix = [];
@@ -169,24 +107,14 @@
             if (type === 'T') return [[0, 7, 0], [7, 7, 7], [0, 0, 0]];
         }
 
-        function draw() {
-            context.fillStyle = '#000';
-            context.fillRect(0, 0, canvas.width, canvas.height);
-            drawMatrix(arena, {x: 0, y: 0});
-            drawMatrix(player.matrix, player.pos);
-        }
-
-        const colors = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'];
-
-        function drawMatrix(matrix, offset) {
-            matrix.forEach((row, y) => {
-                row.forEach((value, x) => {
-                    if (value !== 0) {
-                        context.fillStyle = colors[value];
-                        context.fillRect(x + offset.x, y + offset.y, 1, 1);
-                    }
-                });
-            });
+        function collide(arena, player) {
+            const [m, o] = [player.matrix, player.pos];
+            for (let y = 0; y < m.length; ++y) {
+                for (let x = 0; x < m[y].length; ++x) {
+                    if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) return true;
+                }
+            }
+            return false;
         }
 
         function merge(arena, player) {
@@ -205,6 +133,21 @@
             else matrix.reverse();
         }
 
+        function arenaSweep() {
+            let rowCount = 1;
+            outer: for (let y = arena.length - 1; y > 0; --y) {
+                for (let x = 0; x < arena[y].length; ++x) {
+                    if (arena[y][x] === 0) continue outer;
+                }
+                const row = arena.splice(y, 1)[0].fill(0);
+                arena.unshift(row);
+                ++y;
+                player.score += rowCount * 10;
+                rowCount *= 2;
+            }
+            updateScore();
+        }
+
         function playerDrop() {
             if (isGameOver) return;
             player.pos.y++;
@@ -219,34 +162,17 @@
 
         function playerHardDrop() {
             if (isGameOver) return;
-            while (!collide(arena, player)) {
-                player.pos.y++;
-            }
+            while (!collide(arena, player)) { player.pos.y++; }
             player.pos.y--;
             merge(arena, player);
             playerReset();
             arenaSweep();
-            dropCounter = 0;
         }
 
         function playerMove(dir) {
             if (isGameOver) return;
             player.pos.x += dir;
             if (collide(arena, player)) player.pos.x -= dir;
-        }
-
-        function playerReset() {
-            const pieces = 'ILJOTSZ';
-            player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
-            player.pos.y = 0;
-            player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
-            
-            // 블록 생성하자마자 충돌하면 게임 오버
-            if (collide(arena, player)) {
-                isGameOver = true;
-                finalScoreElement.innerText = player.score;
-                gameOverScreen.style.display = 'flex';
-            }
         }
 
         function playerRotate(dir) {
@@ -265,26 +191,57 @@
             }
         }
 
-        let dropCounter = 0;
-        let dropInterval = 1000;
-        let lastTime = 0;
-
-        function update(time = 0) {
-            if (isGameOver) return; 
-
-            const deltaTime = time - lastTime;
-            lastTime = time;
-            dropCounter += deltaTime;
-            if (dropCounter > dropInterval) playerDrop();
-            draw();
-            requestAnimationFrame(update);
+        function playerReset() {
+            const pieces = 'ILJOTSZ';
+            player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
+            player.pos.y = 0;
+            player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+            if (collide(arena, player)) {
+                isGameOver = true;
+                document.getElementById('final-score').innerText = player.score;
+                gameOverScreen.style.display = 'flex';
+            }
         }
 
         function updateScore() {
             scoreElement.innerText = player.score;
         }
 
-        // 게임 재시작 함수
+        function drawMatrix(matrix, offset) {
+            const colors = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'];
+            matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        context.fillStyle = colors[value];
+                        context.fillRect(x + offset.x, y + offset.y, 1, 1);
+                    }
+                });
+            });
+        }
+
+        function draw() {
+            context.fillStyle = '#000';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            drawMatrix(arena, {x: 0, y: 0});
+            drawMatrix(player.matrix, player.pos);
+        }
+
+        let dropCounter = 0;
+        let dropInterval = 1000;
+        let lastTime = 0;
+        let isGameOver = false;
+
+        function update(time = 0) {
+            if (!isGameOver) {
+                const deltaTime = time - lastTime;
+                lastTime = time;
+                dropCounter += deltaTime;
+                if (dropCounter > dropInterval) playerDrop();
+                draw();
+                requestAnimationFrame(update);
+            }
+        }
+
         function resetGame() {
             arena.forEach(row => row.fill(0));
             player.score = 0;
@@ -305,13 +262,6 @@
             else if (event.keyCode === 38) playerRotate(1);
             else if (event.keyCode === 32) playerHardDrop();
         });
-
-        document.getElementById('left').addEventListener('click', () => playerMove(-1));
-        document.getElementById('right').addEventListener('click', () => playerMove(1));
-        document.getElementById('up').addEventListener('click', () => playerRotate(1));
-        document.getElementById('down').addEventListener('click', () => playerDrop());
-        document.getElementById('space').addEventListener('click', () => playerHardDrop());
-        restartBtn.addEventListener('click', resetGame);
 
         playerReset();
         updateScore();
