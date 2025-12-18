@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mobile Tetris - Hard Drop</title>
+    <title>Mobile Tetris - Game Over</title>
     <style>
         body {
             background: #202028;
             color: #fff;
-            font-family: sans-serif;
+            font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -27,13 +27,41 @@
         canvas {
             display: block;
             background-color: #000;
-            height: 55vh; /* 버튼 공간 확보를 위해 살짝 줄임 */
+            height: 55vh;
         }
 
         .score-board {
             font-size: 1.5rem;
             margin: 10px 0;
             color: #ffeb3b;
+        }
+
+        /* 게임 오버 화면 스타일 */
+        #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none; /* 기본적으로 숨김 */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        #game-over h1 { color: #ff4444; margin-bottom: 10px; }
+        #game-over p { font-size: 1.2rem; margin-bottom: 20px; }
+        
+        #restart-btn {
+            padding: 10px 20px;
+            font-size: 1rem;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
         }
 
         /* 컨트롤러 디자인 */
@@ -58,17 +86,8 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        .btn:active {
-            background: #666;
-            transform: scale(0.95);
-        }
-
-        /* 하드 드롭 버튼 강조 */
-        .btn-hard {
-            background: #ff8e0d;
-            grid-column: 2;
-        }
-
+        .btn:active { background: #666; transform: scale(0.95); }
+        .btn-hard { background: #ff8e0d; grid-column: 2; }
         .btn-rotate { grid-column: 2; }
         .btn-left { grid-column: 1; }
         .btn-down { grid-column: 2; }
@@ -81,6 +100,12 @@
 
     <div id="game-container">
         <canvas id="tetris" width="240" height="400"></canvas>
+        
+        <div id="game-over">
+            <h1>GAME OVER</h1>
+            <p>최종 점수: <span id="final-score">0</span>점</p>
+            <button id="restart-btn">다시 시작</button>
+        </div>
     </div>
 
     <div class="controls">
@@ -95,8 +120,13 @@
         const canvas = document.getElementById('tetris');
         const context = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreElement = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
 
         context.scale(20, 20);
+
+        let isGameOver = false;
 
         function arenaSweep() {
             let rowCount = 1;
@@ -176,6 +206,7 @@
         }
 
         function playerDrop() {
+            if (isGameOver) return;
             player.pos.y++;
             if (collide(arena, player)) {
                 player.pos.y--;
@@ -186,8 +217,8 @@
             dropCounter = 0;
         }
 
-        // --- 하드 드롭 함수 추가 ---
         function playerHardDrop() {
+            if (isGameOver) return;
             while (!collide(arena, player)) {
                 player.pos.y++;
             }
@@ -199,6 +230,7 @@
         }
 
         function playerMove(dir) {
+            if (isGameOver) return;
             player.pos.x += dir;
             if (collide(arena, player)) player.pos.x -= dir;
         }
@@ -208,14 +240,17 @@
             player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
             player.pos.y = 0;
             player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+            
+            // 블록 생성하자마자 충돌하면 게임 오버
             if (collide(arena, player)) {
-                arena.forEach(row => row.fill(0));
-                player.score = 0;
-                updateScore();
+                isGameOver = true;
+                finalScoreElement.innerText = player.score;
+                gameOverScreen.style.display = 'flex';
             }
         }
 
         function playerRotate(dir) {
+            if (isGameOver) return;
             const pos = player.pos.x;
             let offset = 1;
             rotate(player.matrix, dir);
@@ -235,6 +270,8 @@
         let lastTime = 0;
 
         function update(time = 0) {
+            if (isGameOver) return; 
+
             const deltaTime = time - lastTime;
             lastTime = time;
             dropCounter += deltaTime;
@@ -247,24 +284,34 @@
             scoreElement.innerText = player.score;
         }
 
+        // 게임 재시작 함수
+        function resetGame() {
+            arena.forEach(row => row.fill(0));
+            player.score = 0;
+            isGameOver = false;
+            gameOverScreen.style.display = 'none';
+            updateScore();
+            playerReset();
+            update();
+        }
+
         const arena = createMatrix(12, 20);
         const player = { pos: {x: 0, y: 0}, matrix: null, score: 0 };
 
-        // 키보드 이벤트 (스페이스바 추가)
         document.addEventListener('keydown', event => {
             if (event.keyCode === 37) playerMove(-1);
             else if (event.keyCode === 39) playerMove(1);
             else if (event.keyCode === 40) playerDrop();
             else if (event.keyCode === 38) playerRotate(1);
-            else if (event.keyCode === 32) playerHardDrop(); // Spacebar
+            else if (event.keyCode === 32) playerHardDrop();
         });
 
-        // 버튼 이벤트 (하드드롭 버튼 추가)
         document.getElementById('left').addEventListener('click', () => playerMove(-1));
         document.getElementById('right').addEventListener('click', () => playerMove(1));
         document.getElementById('up').addEventListener('click', () => playerRotate(1));
         document.getElementById('down').addEventListener('click', () => playerDrop());
         document.getElementById('space').addEventListener('click', () => playerHardDrop());
+        restartBtn.addEventListener('click', resetGame);
 
         playerReset();
         updateScore();
