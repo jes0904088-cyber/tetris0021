@@ -1,198 +1,74 @@
-// 1. 게임 설정
-const ROWS = 20;
-const COLS = 10;
-const container = document.getElementById('game-container');
+import pygame
+import random
 
-// 2. 게임 상태
-let board = [];
-let currentPiece = null;
-let pieceX = 0;
-let pieceY = 0;
-let gameLoopId = null; // 게임 루프 ID 저장용
-let score = 0;        // 점수 추가
+# 설정값
+SCREEN_WIDTH = 300
+SCREEN_HEIGHT = 600
+BLOCK_SIZE = 30
+GRID_WIDTH = SCREEN_WIDTH // BLOCK_SIZE
+GRID_HEIGHT = SCREEN_HEIGHT // BLOCK_SIZE
 
-const TETROMINOS = {
-    'T': { shape: [[0,1,0], [1,1,1], [0,0,0]], color: 'T' },
-    'I': { shape: [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]], color: 'I' },
-    'O': { shape: [[1,1], [1,1]], color: 'O' },
-    'L': { shape: [[0,0,1], [1,1,1], [0,0,0]], color: 'L' },
-    'J': { shape: [[1,0,0], [1,1,1], [0,0,0]], color: 'J' },
-    'S': { shape: [[0,1,1], [1,1,0], [0,0,0]], color: 'S' },
-    'Z': { shape: [[1,1,0], [0,1,1], [0,0,0]], color: 'Z' }
-};
+# 색상 정의 (R, G, B)
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (128, 128, 128)
+COLORS = [(0, 255, 255), (255, 255, 0), (128, 0, 128), (0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 165, 0)]
 
-// 4. 새 블록 생성
-function spawnPiece() {
-    const keys = Object.keys(TETROMINOS);
-    const name = keys[Math.floor(Math.random() * keys.length)];
-    const pieceData = TETROMINOS[name];
+# 테트리스 모양 정의 (7가지)
+SHAPES = [
+    [[1, 1, 1, 1]], # I
+    [[1, 1], [1, 1]], # O
+    [[0, 1, 0], [1, 1, 1]], # T
+    [[0, 1, 1], [1, 1, 0]], # S
+    [[1, 1, 0], [0, 1, 1]], # Z
+    [[1, 0, 0], [1, 1, 1]], # J
+    [[0, 0, 1], [1, 1, 1]]  # L
+]
+
+class Piece:
+    def __init__(self, x, y, shape):
+        self.x = x
+        self.y = y
+        self.shape = shape
+        self.color = random.choice(COLORS)
+        self.rotation = 0
+
+def create_grid(locked_pos={}):
+    grid = [[BLACK for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+    for y in range(GRID_HEIGHT):
+        for x in range(GRID_WIDTH):
+            if (x, y) in locked_pos:
+                grid[y][x] = locked_pos[(x, y)]
+    return grid
+
+def draw_grid(surface, grid):
+    for y in range(len(grid)):
+        for x in range(len(grid[y])):
+            pygame.draw.rect(surface, grid[y][x], (x*BLOCK_SIZE, y*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE), 0)
+            pygame.draw.rect(surface, GRAY, (x*BLOCK_SIZE, y*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE), 1)
+
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    clock = pygame.time.Clock()
     
-    currentPiece = JSON.parse(JSON.stringify(pieceData.shape));
-    currentPiece.name = pieceData.color;
+    locked_positions = {}
+    grid = create_grid(locked_positions)
     
-    pieceX = Math.floor(COLS / 2) - Math.floor(currentPiece[0].length / 2);
-    pieceY = 0;
+    running = True
+    while running:
+        grid = create_grid(locked_positions)
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+        
+        screen.fill(BLACK)
+        draw_grid(screen, grid)
+        pygame.display.update()
+        clock.tick(60)
 
-    if (!isValidMove(currentPiece, pieceX, pieceY)) {
-        clearInterval(gameLoopId);
-        alert(`Game Over! 최종 점수: ${score}`);
-        startGame(); // 게임 재시작
-    }
-}
+    pygame.quit()
 
-// 5. 충돌 검사
-function isValidMove(newPiece, newX, newY) {
-    for (let r = 0; r < newPiece.length; r++) {
-        for (let c = 0; c < newPiece[r].length; c++) {
-            if (newPiece[r][c] === 1) {
-                const boardR = newY + r;
-                const boardC = newX + c;
-                
-                // 벽 충돌 검사
-                if (boardC < 0 || boardC >= COLS || boardR >= ROWS) return false;
-                // 바닥 이전의 블록 충돌 검사 (boardR이 0보다 작을 때는 천장이므로 통과)
-                if (boardR >= 0 && board[boardR][boardC] !== 0) return false;
-            }
-        }
-    }
-    return true;
-}
-
-// 6. 보드 초기화 (DOM)
-function initializeBoardDOM() {
-    container.innerHTML = '';
-    for (let i = 0; i < ROWS * COLS; i++) {
-        const blockDiv = document.createElement('div');
-        blockDiv.classList.add('block');
-        container.appendChild(blockDiv);
-    }
-}
-
-// 7. 렌더링
-function render() {
-    const allBlocks = container.children;
-    
-    // 1. 보드 초기화 및 쌓인 블록 렌더링
-    for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-            const index = r * COLS + c;
-            allBlocks[index].className = 'block';
-            if (board[r][c] !== 0) {
-                allBlocks[index].classList.add(board[r][c]);
-            }
-        }
-    }
-
-    // 2. 현재 움직이는 블록 렌더링
-    if (currentPiece) {
-        currentPiece.forEach((row, r) => {
-            row.forEach((value, c) => {
-                if (value) {
-                    const boardR = pieceY + r;
-                    const boardC = pieceX + c;
-                    if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
-                        const index = boardR * COLS + boardC;
-                        allBlocks[index].classList.add(currentPiece.name);
-                    }
-                }
-            });
-        });
-    }
-}
-
-// 8. 블록 잠금
-function lockPiece() {
-    currentPiece.forEach((row, r) => {
-        row.forEach((value, c) => {
-            if (value) {
-                const boardR = pieceY + r;
-                const boardC = pieceX + c;
-                if (boardR >= 0) {
-                    board[boardR][boardC] = currentPiece.name;
-                }
-            }
-        });
-    });
-    clearLines();
-    spawnPiece();
-}
-
-// 9. 줄 제거 (수정됨)
-function clearLines() {
-    let linesCleared = 0;
-    for (let r = ROWS - 1; r >= 0; r--) {
-        const isLineFull = board[r].every(cell => cell !== 0);
-        if (isLineFull) {
-            board.splice(r, 1); // 해당 줄 삭제
-            board.unshift(Array(COLS).fill(0)); // 맨 위에 빈 줄 추가
-            linesCleared++;
-            r++; // 줄이 내려왔으므로 현재 줄 다시 검사
-        }
-    }
-    if (linesCleared > 0) {
-        score += linesCleared * 100;
-        // console.log("Score:", score); // 점수 확인용
-    }
-}
-
-// 10~12. 이동, 회전, 드롭
-function move(dx, dy) {
-    if (isValidMove(currentPiece, pieceX + dx, pieceY + dy)) {
-        pieceX += dx;
-        pieceY += dy;
-        render();
-        return true;
-    } else if (dy === 1) {
-        lockPiece();
-        render();
-        return false;
-    }
-    return false;
-}
-
-function rotate() {
-    const rotated = currentPiece[0].map((_, i) => currentPiece.map(row => row[i]).reverse());
-    if (isValidMove(rotated, pieceX, pieceY)) {
-        currentPiece = rotated;
-        currentPiece.name = TETROMINOS[Object.keys(TETROMINOS).find(k => TETROMINOS[k].color === currentPiece.name)].color; // 이름 유지
-        // 위 방식보다 처음부터 name을 속성으로 들고 있게 수정하는 것이 좋습니다.
-        render();
-    }
-}
-
-function hardDrop() {
-    while (isValidMove(currentPiece, pieceX, pieceY + 1)) {
-        pieceY++;
-    }
-    lockPiece();
-    render();
-}
-
-// 13. 게임 시작 및 루프
-function startGame() {
-    if (gameLoopId) clearInterval(gameLoopId);
-    board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-    score = 0;
-    initializeBoardDOM();
-    spawnPiece();
-    gameLoopId = setInterval(() => move(0, 1), 1000);
-    render();
-}
-
-// 14. 이벤트 리스너
-document.getElementById('btn-left').onclick = () => move(-1, 0);
-document.getElementById('btn-right').onclick = () => move(1, 0);
-document.getElementById('btn-rotate').onclick = rotate;
-document.getElementById('btn-down').onclick = () => move(0, 1);
-document.getElementById('btn-drop').onclick = hardDrop;
-
-// 키보드 이벤트 추가 (PC 테스트용)
-document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft') move(-1, 0);
-    if (e.key === 'ArrowRight') move(1, 0);
-    if (e.key === 'ArrowDown') move(0, 1);
-    if (e.key === 'ArrowUp') rotate();
-    if (e.code === 'Space') hardDrop();
-});
-
-startGame();
+if __name__ == "__main__":
+    main()
