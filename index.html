@@ -1,17 +1,16 @@
-// JavaScript 시작
-
-// 1. 게임 설정 (기존과 동일)
+// 1. 게임 설정
 const ROWS = 20;
 const COLS = 10;
 const container = document.getElementById('game-container');
 
-// 2. 게임 상태 (기존과 동일)
-let board = Array(ROWS).fill(0).map(() => Array(COLS).fill(0)); 
+// 2. 게임 상태
+let board = [];
 let currentPiece = null;
 let pieceX = 0;
 let pieceY = 0;
+let gameLoopId = null; // 게임 루프 ID 저장용
+let score = 0;        // 점수 추가
 
-// 3. 테트로미노 모양 정의 (기존과 동일)
 const TETROMINOS = {
     'T': { shape: [[0,1,0], [1,1,1], [0,0,0]], color: 'T' },
     'I': { shape: [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]], color: 'I' },
@@ -22,187 +21,145 @@ const TETROMINOS = {
     'Z': { shape: [[1,1,0], [0,1,1], [0,0,0]], color: 'Z' }
 };
 
-// 4. 새 블록 생성 (기존과 동일)
+// 4. 새 블록 생성
 function spawnPiece() {
     const keys = Object.keys(TETROMINOS);
     const name = keys[Math.floor(Math.random() * keys.length)];
     const pieceData = TETROMINOS[name];
     
-    currentPiece = JSON.parse(JSON.stringify(pieceData.shape)); 
+    currentPiece = JSON.parse(JSON.stringify(pieceData.shape));
     currentPiece.name = pieceData.color;
     
     pieceX = Math.floor(COLS / 2) - Math.floor(currentPiece[0].length / 2);
     pieceY = 0;
-    
-    // 게임 오버 체크 (새 블록이 유효하지 않으면)
+
     if (!isValidMove(currentPiece, pieceX, pieceY)) {
         clearInterval(gameLoopId);
-        alert('Game Over! (점수 로직 추가 필요)');
+        alert(`Game Over! 최종 점수: ${score}`);
+        startGame(); // 게임 재시작
     }
 }
 
-// 5. 충돌 검사 (기존과 동일)
+// 5. 충돌 검사
 function isValidMove(newPiece, newX, newY) {
-    const pieceRows = newPiece.length;
-    const pieceCols = newPiece[0].length;
-    
-    for (let r = 0; r < pieceRows; r++) {
-        for (let c = 0; c < pieceCols; c++) {
+    for (let r = 0; r < newPiece.length; r++) {
+        for (let c = 0; c < newPiece[r].length; c++) {
             if (newPiece[r][c] === 1) {
                 const boardR = newY + r;
                 const boardC = newX + c;
-
-                if (boardC < 0 || boardC >= COLS || boardR >= ROWS) {
-                    return false;
-                }
-                if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
-                    if (board[boardR][boardC] !== 0) {
-                        return false;
-                    }
-                }
+                
+                // 벽 충돌 검사
+                if (boardC < 0 || boardC >= COLS || boardR >= ROWS) return false;
+                // 바닥 이전의 블록 충돌 검사 (boardR이 0보다 작을 때는 천장이므로 통과)
+                if (boardR >= 0 && board[boardR][boardC] !== 0) return false;
             }
         }
     }
     return true;
 }
 
-// 6. 게임 보드 초기 DOM 요소 생성 (기존과 동일)
+// 6. 보드 초기화 (DOM)
 function initializeBoardDOM() {
-    container.innerHTML = ''; 
-    for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-            const blockDiv = document.createElement('div');
-            blockDiv.classList.add('block');
-            container.appendChild(blockDiv);
-        }
+    container.innerHTML = '';
+    for (let i = 0; i < ROWS * COLS; i++) {
+        const blockDiv = document.createElement('div');
+        blockDiv.classList.add('block');
+        container.appendChild(blockDiv);
     }
 }
 
-// 7. 게임 상태를 바탕으로 DOM 업데이트 (렌더링) (기존과 동일)
+// 7. 렌더링
 function render() {
     const allBlocks = container.children;
-    let blockIndex = 0;
     
-    // 1. 보드 상태(쌓인 블록) 렌더링
+    // 1. 보드 초기화 및 쌓인 블록 렌더링
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
-            const blockDiv = allBlocks[blockIndex];
-            blockDiv.className = 'block'; 
-            
+            const index = r * COLS + c;
+            allBlocks[index].className = 'block';
             if (board[r][c] !== 0) {
-                blockDiv.classList.add(board[r][c]);
+                allBlocks[index].classList.add(board[r][c]);
             }
-            blockIndex++;
         }
     }
-    
-    // 2. 현재 움직이는 블록 렌더링 (기존과 동일)
-    if (!currentPiece) return;
-    const pieceRows = currentPiece.length;
-    const pieceCols = currentPiece[0].length;
-    const colorClass = currentPiece.name;
 
-    for (let r = 0; r < pieceRows; r++) {
-        for (let c = 0; c < pieceCols; c++) {
-            if (currentPiece[r][c]) {
-                const boardR = pieceY + r;
-                const boardC = pieceX + c;
-
-                if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
-                    const cellIndex = boardR * COLS + boardC;
-                    const blockDiv = allBlocks[cellIndex];
-                    if (blockDiv) {
-                        blockDiv.classList.add(colorClass); 
+    // 2. 현재 움직이는 블록 렌더링
+    if (currentPiece) {
+        currentPiece.forEach((row, r) => {
+            row.forEach((value, c) => {
+                if (value) {
+                    const boardR = pieceY + r;
+                    const boardC = pieceX + c;
+                    if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
+                        const index = boardR * COLS + boardC;
+                        allBlocks[index].classList.add(currentPiece.name);
                     }
                 }
-            }
-        }
+            });
+        });
     }
 }
 
 // 8. 블록 잠금
 function lockPiece() {
-    const pieceRows = currentPiece.length;
-    const pieceCols = currentPiece[0].length;
-    const colorClass = currentPiece.name;
-
-    for (let r = 0; r < pieceRows; r++) {
-        for (let c = 0; c < pieceCols; c++) {
-            if (currentPiece[r][c]) {
+    currentPiece.forEach((row, r) => {
+        row.forEach((value, c) => {
+            if (value) {
                 const boardR = pieceY + r;
                 const boardC = pieceX + c;
-                
-                if (boardR >= 0 && boardR < ROWS && boardC >= 0 && boardC < COLS) {
-                    board[boardR][boardC] = colorClass; // 보드에 고정
+                if (boardR >= 0) {
+                    board[boardR][boardC] = currentPiece.name;
                 }
             }
-        }
-    }
-    
-    // ⭐️ 새로 추가된 줄 제거 함수 호출
-    clearLines(); 
-    
+        });
+    });
+    clearLines();
     spawnPiece();
 }
 
-// ⭐️ 9. 줄 제거 로직 (새로운 핵심 함수)
+// 9. 줄 제거 (수정됨)
 function clearLines() {
+    let linesCleared = 0;
     for (let r = ROWS - 1; r >= 0; r--) {
-        // 현재 줄이 꽉 찼는지 확인
         const isLineFull = board[r].every(cell => cell !== 0);
-
         if (isLineFull) {
-            // 꽉 찬 줄을 제거하고, 새로운 빈 줄을 맨 위에 추가
-            // board.splice(r, 1); // 현재 r 행을 제거
-            // board.unshift(Array(COLS).fill(0)); // 맨 위에 새로운 빈 행 추가
-            
-            // 더 효율적인 방법: 윗줄을 아래로 복사하고 맨 윗줄을 비움
-            for (let k = r; k > 0; k--) {
-                board[k] = [...board[k - 1]]; // 윗줄을 아랫줄로 복사
-            }
-            board[0] = Array(COLS).fill(0); // 맨 윗줄은 빈 줄로 설정
-            
-            // 줄을 지웠으므로, 지워진 줄의 위치(r)를 다시 확인해야 함 (r-- 대신 r++)
-            r++; 
-            
-            // TODO: 점수 증가 로직 추가
+            board.splice(r, 1); // 해당 줄 삭제
+            board.unshift(Array(COLS).fill(0)); // 맨 위에 빈 줄 추가
+            linesCleared++;
+            r++; // 줄이 내려왔으므로 현재 줄 다시 검사
         }
+    }
+    if (linesCleared > 0) {
+        score += linesCleared * 100;
+        // console.log("Score:", score); // 점수 확인용
     }
 }
 
-// 10. 블록 이동 (기존과 동일)
-function move(deltaX, deltaY) {
-    const newX = pieceX + deltaX;
-    const newY = pieceY + deltaY;
-
-    if (isValidMove(currentPiece, newX, newY)) {
-        pieceX = newX;
-        pieceY = newY;
-    } else if (deltaY === 1) { 
+// 10~12. 이동, 회전, 드롭
+function move(dx, dy) {
+    if (isValidMove(currentPiece, pieceX + dx, pieceY + dy)) {
+        pieceX += dx;
+        pieceY += dy;
+        render();
+        return true;
+    } else if (dy === 1) {
         lockPiece();
+        render();
+        return false;
     }
-    render();
+    return false;
 }
 
-// 11. 블록 회전 (기존과 동일)
 function rotate() {
-    const N = currentPiece.length;
-    let newPiece = Array(N).fill(0).map(() => Array(N).fill(0));
-
-    for (let r = 0; r < N; r++) {
-        for (let c = 0; c < N; c++) {
-            newPiece[c][N - 1 - r] = currentPiece[r][c];
-        }
+    const rotated = currentPiece[0].map((_, i) => currentPiece.map(row => row[i]).reverse());
+    if (isValidMove(rotated, pieceX, pieceY)) {
+        currentPiece = rotated;
+        currentPiece.name = TETROMINOS[Object.keys(TETROMINOS).find(k => TETROMINOS[k].color === currentPiece.name)].color; // 이름 유지
+        // 위 방식보다 처음부터 name을 속성으로 들고 있게 수정하는 것이 좋습니다.
+        render();
     }
-    
-    if (isValidMove(newPiece, pieceX, pieceY)) {
-        newPiece.name = currentPiece.name;
-        currentPiece = newPiece;
-    }
-    render();
 }
 
-// 12. 하드 드롭 (기존과 동일)
 function hardDrop() {
     while (isValidMove(currentPiece, pieceX, pieceY + 1)) {
         pieceY++;
@@ -211,31 +168,31 @@ function hardDrop() {
     render();
 }
 
-// 13. 게임 루프 및 시작 (기존과 동일)
-let gameLoopId;
-const DROP_INTERVAL = 1000; 
-
-function gameLoop() {
-    move(0, 1); 
-}
-
+// 13. 게임 시작 및 루프
 function startGame() {
     if (gameLoopId) clearInterval(gameLoopId);
-    board = Array(ROWS).fill(0).map(() => Array(COLS).fill(0));
+    board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+    score = 0;
     initializeBoardDOM();
     spawnPiece();
-    gameLoopId = setInterval(gameLoop, DROP_INTERVAL);
+    gameLoopId = setInterval(() => move(0, 1), 1000);
     render();
 }
 
-// 14. 모바일 터치 이벤트 리스너 연결 (기존과 동일)
-document.getElementById('btn-left').addEventListener('click', () => move(-1, 0));
-document.getElementById('btn-right').addEventListener('click', () => move(1, 0));
-document.getElementById('btn-rotate').addEventListener('click', rotate);
-document.getElementById('btn-down').addEventListener('click', () => move(0, 1)); 
-document.getElementById('btn-drop').addEventListener('click', hardDrop); 
+// 14. 이벤트 리스너
+document.getElementById('btn-left').onclick = () => move(-1, 0);
+document.getElementById('btn-right').onclick = () => move(1, 0);
+document.getElementById('btn-rotate').onclick = rotate;
+document.getElementById('btn-down').onclick = () => move(0, 1);
+document.getElementById('btn-drop').onclick = hardDrop;
 
-// 15. 초기 실행 (기존과 동일)
+// 키보드 이벤트 추가 (PC 테스트용)
+document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') move(-1, 0);
+    if (e.key === 'ArrowRight') move(1, 0);
+    if (e.key === 'ArrowDown') move(0, 1);
+    if (e.key === 'ArrowUp') rotate();
+    if (e.code === 'Space') hardDrop();
+});
+
 startGame();
-
-// JavaScript 끝
