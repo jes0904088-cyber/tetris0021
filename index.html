@@ -1,74 +1,185 @@
-import pygame
-import random
+<!DOCTYPE html>
+<html>
+<head>
+    <title>간단한 테트리스</title>
+    <style>
+        body { background: #202028; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+        canvas { border: solid 2px #fff; background-color: #000; }
+    </style>
+</head>
+<body>
+    <h1>Tetris</h1>
+    <div id="score">점수: 0</div>
+    <canvas id="tetris" width="240" height="400"></canvas>
 
-# 설정값
-SCREEN_WIDTH = 300
-SCREEN_HEIGHT = 600
-BLOCK_SIZE = 30
-GRID_WIDTH = SCREEN_WIDTH // BLOCK_SIZE
-GRID_HEIGHT = SCREEN_HEIGHT // BLOCK_SIZE
+    <script>
+        const canvas = document.getElementById('tetris');
+        const context = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
 
-# 색상 정의 (R, G, B)
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GRAY = (128, 128, 128)
-COLORS = [(0, 255, 255), (255, 255, 0), (128, 0, 128), (0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 165, 0)]
+        context.scale(20, 20); // 블록 크기 확대
 
-# 테트리스 모양 정의 (7가지)
-SHAPES = [
-    [[1, 1, 1, 1]], # I
-    [[1, 1], [1, 1]], # O
-    [[0, 1, 0], [1, 1, 1]], # T
-    [[0, 1, 1], [1, 1, 0]], # S
-    [[1, 1, 0], [0, 1, 1]], # Z
-    [[1, 0, 0], [1, 1, 1]], # J
-    [[0, 0, 1], [1, 1, 1]]  # L
-]
+        // 1. 블록 모양 정의 (7가지 테트리미노)
+        function createPiece(type) {
+            if (type === 'T') return [[0, 1, 0], [1, 1, 1], [0, 0, 0]];
+            if (type === 'O') return [[2, 2], [2, 2]];
+            if (type === 'L') return [[0, 0, 3], [3, 3, 3], [0, 0, 0]];
+            if (type === 'J') return [[4, 0, 0], [4, 4, 4], [0, 0, 0]];
+            if (type === 'I') return [[0, 5, 0, 0], [0, 5, 0, 0], [0, 5, 0, 0], [0, 5, 0, 0]];
+            if (type === 'S') return [[0, 6, 6], [6, 6, 0], [0, 0, 0]];
+            if (type === 'Z') return [[7, 7, 0], [0, 7, 7], [0, 0, 0]];
+        }
 
-class Piece:
-    def __init__(self, x, y, shape):
-        self.x = x
-        self.y = y
-        self.shape = shape
-        self.color = random.choice(COLORS)
-        self.rotation = 0
+        // 2. 충돌 체크 함수
+        function collide(arena, player) {
+            const [m, o] = [player.matrix, player.pos];
+            for (let y = 0; y < m.length; ++y) {
+                for (let x = 0; x < m[y].length; ++x) {
+                    if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
 
-def create_grid(locked_pos={}):
-    grid = [[BLACK for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
-    for y in range(GRID_HEIGHT):
-        for x in range(GRID_WIDTH):
-            if (x, y) in locked_pos:
-                grid[y][x] = locked_pos[(x, y)]
-    return grid
+        // 3. 보드 생성 (20행 12열)
+        function createMatrix(w, h) {
+            const matrix = [];
+            while (h--) { matrix.push(new Array(w).fill(0)); }
+            return matrix;
+        }
 
-def draw_grid(surface, grid):
-    for y in range(len(grid)):
-        for x in range(len(grid[y])):
-            pygame.draw.rect(surface, grid[y][x], (x*BLOCK_SIZE, y*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE), 0)
-            pygame.draw.rect(surface, GRAY, (x*BLOCK_SIZE, y*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE), 1)
+        // 4. 화면 그리기
+        function draw() {
+            context.fillStyle = '#000';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            drawMatrix(arena, {x: 0, y: 0});
+            drawMatrix(player.matrix, player.pos);
+        }
 
-def main():
-    pygame.init()
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    clock = pygame.time.Clock()
-    
-    locked_positions = {}
-    grid = create_grid(locked_positions)
-    
-    running = True
-    while running:
-        grid = create_grid(locked_positions)
-        
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-        
-        screen.fill(BLACK)
-        draw_grid(screen, grid)
-        pygame.display.update()
-        clock.tick(60)
+        function drawMatrix(matrix, offset) {
+            const colors = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'];
+            matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        context.fillStyle = colors[value];
+                        context.fillRect(x + offset.x, y + offset.y, 1, 1);
+                    }
+                });
+            });
+        }
 
-    pygame.quit()
+        // 5. 블록 합치기 및 줄 삭제
+        function arenaSweep() {
+            let rowCount = 1;
+            outer: for (let y = arena.length - 1; y > 0; --y) {
+                for (let x = 0; x < arena[y].length; ++x) {
+                    if (arena[y][x] === 0) continue outer;
+                }
+                const row = arena.splice(y, 1)[0].fill(0);
+                arena.unshift(row);
+                ++y;
+                player.score += rowCount * 10;
+                rowCount *= 2;
+            }
+            updateScore();
+        }
 
-if __name__ == "__main__":
-    main()
+        function merge(arena, player) {
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) { arena[y + player.pos.y][x + player.pos.x] = value; }
+                });
+            });
+        }
+
+        // 6. 회전 로직
+        function rotate(matrix, dir) {
+            for (let y = 0; y < matrix.length; ++y) {
+                for (let x = 0; x < y; ++x) {
+                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+                }
+            }
+            if (dir > 0) matrix.forEach(row => row.reverse());
+            else matrix.reverse();
+        }
+
+        // 7. 플레이어 동작
+        function playerDrop() {
+            player.pos.y++;
+            if (collide(arena, player)) {
+                player.pos.y--;
+                merge(arena, player);
+                playerReset();
+                arenaSweep();
+            }
+            dropCounter = 0;
+        }
+
+        function playerMove(dir) {
+            player.pos.x += dir;
+            if (collide(arena, player)) { player.pos.x -= dir; }
+        }
+
+        function playerRotate(dir) {
+            const pos = player.pos.x;
+            let offset = 1;
+            rotate(player.matrix, dir);
+            while (collide(arena, player)) {
+                player.pos.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > player.matrix[0].length) {
+                    rotate(player.matrix, -dir);
+                    player.pos.x = pos;
+                    return;
+                }
+            }
+        }
+
+        function playerReset() {
+            const pieces = 'ILJOTSZ';
+            player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
+            player.pos.y = 0;
+            player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+            if (collide(arena, player)) {
+                arena.forEach(row => row.fill(0));
+                player.score = 0;
+                updateScore();
+            }
+        }
+
+        function updateScore() {
+            scoreElement.innerText = "점수: " + player.score;
+        }
+
+        let dropCounter = 0;
+        let dropInterval = 1000;
+        let lastTime = 0;
+
+        function update(time = 0) {
+            const deltaTime = time - lastTime;
+            lastTime = time;
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) { playerDrop(); }
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        const arena = createMatrix(12, 20);
+        const player = { pos: {x: 0, y: 0}, matrix: null, score: 0 };
+
+        document.addEventListener('keydown', event => {
+            if (event.keyCode === 37) playerMove(-1); // 왼쪽
+            else if (event.keyCode === 39) playerMove(1);  // 오른쪽
+            else if (event.keyCode === 40) playerDrop();   // 아래
+            else if (event.keyCode === 81) playerRotate(-1); // Q (회전)
+            else if (event.keyCode === 87) playerRotate(1);  // W (회전)
+        });
+
+        playerReset();
+        updateScore();
+        update();
+    </script>
+</body>
+</html>
